@@ -1,0 +1,359 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-02-03"
+---
+
+#This code is used to visualize the simulation results
+
+#load library
+```{r}
+library(GenomicRanges)
+library(rtracklayer)
+library(EnrichedHeatmap)
+library(circlize)
+library(ggrastr)
+```
+
+#load dmv data
+```{r}
+#dmv for mm10
+dmv_data <- read.table("/gpfs/gibbs/project/zsmith/mc3365/database/DMV/DMVs_label.bed", header = FALSE)
+colnames(dmv_data) = c("chrom", "start", "end", "dmv")
+
+#dmv subset
+hyper_dmv <- read.table("/gpfs/gibbs/project/zsmith/mc3365/wgbs/mef2/hyper_dmvs.txt")
+unchanged_dmv <- read.table ("/gpfs/gibbs/project/zsmith/mc3365/wgbs/mef2/unchanged_dmvs.txt")
+
+
+gr_dmv <- GRanges(
+  seqnames = dmv_data$chrom,
+  ranges = IRanges(start = dmv_data$start, end = dmv_data$end),
+  label = dmv_data$dmv
+)
+
+gr_dmv_hyper <- gr_dmv[gr_dmv$label %in% hyper_dmv$V1] #265
+gr_dmv_unchanged <- gr_dmv[gr_dmv$label %in% unchanged_dmv$V1] #861
+```
+
+#load CGI data
+```{r}
+#cgi for mm10
+cgi_data <- read.table("/gpfs/gibbs/project/zsmith/mc3365/database/DMV/CGIs_mm10_dmv_label.bed", header = FALSE)
+colnames(cgi_data) = c("chrom", "start", "end", "cgi", "dmv")
+
+#cgi subset
+hyper_cgi <- cgi_data[cgi_data$dmv %in% hyper_dmv$V1, ]
+unchanged_cgi <- cgi_data[cgi_data$dmv %in% unchanged_dmv$V1, ]
+
+gr_hyper_cgi <- GRanges(
+  seqnames = hyper_cgi$chrom,
+  ranges = IRanges(start = hyper_cgi$start, end = hyper_cgi$end),
+  label = hyper_cgi$cgi
+)
+
+gr_unchanged_cgi <- GRanges(
+  seqnames = unchanged_cgi$chrom,
+  ranges = IRanges(start = unchanged_cgi$start, end = unchanged_cgi$end),
+  label = unchanged_cgi$cgi
+)
+
+```
+
+#load our data
+```{r}
+#load data
+p_1 <- read.table("/vast/palmer/scratch/zsmith/mc3365/rlm_analysis/simulation/data/entropy_raw_simulation_p_1_128x.txt", header = TRUE)
+
+p0 <- read.table("/vast/palmer/scratch/zsmith/mc3365/rlm_analysis/simulation/data/entropy_raw_simulation_p0_128x.txt", header = TRUE)
+
+p5 <- read.table("/vast/palmer/scratch/zsmith/mc3365/rlm_analysis/simulation/data/entropy_raw_simulation_p5_128x.txt", header = TRUE)
+
+#convert to grange
+
+# Function to create GRanges objects for different entropy types
+create_entropy_granges <- function(data, value_column) {
+    GRanges(
+        seqnames = data$chrom,
+        ranges = IRanges(start = data$start, end = data$end),
+        value = data[[value_column]]
+    )
+}
+
+# Create GRanges for each passage and each type of entropy
+# Passage -1
+gr_p_1_observed <- create_entropy_granges(p_1, "observed_entropy")
+gr_p_1_stoch_mean <- create_entropy_granges(p_1, "stochastic_mean")
+gr_p_1_stoch_min <- create_entropy_granges(p_1, "stochastic_min")
+gr_p_1_stoch_max <- create_entropy_granges(p_1, "stochastic_max")
+gr_p_1_allelic <- create_entropy_granges(p_1, "allelic_entropy")
+gr_p_1_methy <- create_entropy_granges(p_1, "methylation")
+
+
+# Passage 0
+gr_p0_observed <- create_entropy_granges(p0, "observed_entropy")
+gr_p0_stoch_mean <- create_entropy_granges(p0, "stochastic_mean")
+gr_p0_stoch_min <- create_entropy_granges(p0, "stochastic_min")
+gr_p0_stoch_max <- create_entropy_granges(p0, "stochastic_max")
+gr_p0_allelic <- create_entropy_granges(p0, "allelic_entropy")
+gr_p0_methy <- create_entropy_granges(p0, "methylation")
+
+
+# Passage 5
+gr_p5_observed <- create_entropy_granges(p5, "observed_entropy")
+gr_p5_stoch_mean <- create_entropy_granges(p5, "stochastic_mean")
+gr_p5_stoch_min <- create_entropy_granges(p5, "stochastic_min")
+gr_p5_stoch_max <- create_entropy_granges(p5, "stochastic_max")
+gr_p5_allelic <- create_entropy_granges(p5, "allelic_entropy")
+gr_p5_methy <- create_entropy_granges(p5, "methylation")
+
+
+```
+
+#make function to generate all matrix (dmv)
+```{r}
+create_matrices_for_all <- function(p_1, p0, p5, gr_dmv_hyper, gr_dmv_unchanged) {
+    # List of passages and their data
+    passages <- list(
+        "p_1" = p_1,
+        "p0" = p0,
+        "p5" = p5
+    )
+    
+    # List of entropy categories to process
+    entropy_categories <- c(
+        "observed_entropy",
+        "stochastic_mean",
+        "stochastic_min", 
+        "stochastic_max",
+        "methylation",
+        "allelic_entropy"
+    )
+    
+    # Parameters for normalizeToMatrix (constant for all)
+    matrix_params <- list(
+        value_column = "value",
+        mean_mode = "absolute",
+        extend = 2000,
+        w = 200,
+        background = NA,
+        smooth = TRUE,
+        target_ratio = 0.7
+    )
+    
+    # Output containers
+    matrices_hyper <- list()
+    matrices_unchanged <- list()
+    
+    # Loop through each passage
+    for (passage_name in names(passages)) {
+        print(paste("Processing", passage_name))
+        
+        passage_data <- passages[[passage_name]]
+        matrices_hyper[[passage_name]] <- list()
+        matrices_unchanged[[passage_name]] <- list()
+        
+        # Loop through each entropy category
+        for (category in entropy_categories) {
+            print(paste("  Processing", category))
+            
+            # Create GRanges for this category
+            gr_current <- GRanges(
+                seqnames = passage_data$chrom,
+                ranges = IRanges(start = passage_data$start, end = passage_data$end),
+                value = passage_data[[category]]
+            )
+            
+            # Create matrices for both hyper and unchanged DMVs
+            matrices_hyper[[passage_name]][[category]] <- normalizeToMatrix(
+                gr_current, gr_dmv_hyper, 
+                value_column = "value",
+                mean_mode = matrix_params$mean_mode,
+                extend = matrix_params$extend,
+                w = matrix_params$w,
+                background = matrix_params$background,
+                smooth = matrix_params$smooth,
+                target_ratio = matrix_params$target_ratio
+            )
+            
+            matrices_unchanged[[passage_name]][[category]] <- normalizeToMatrix(
+                gr_current, gr_dmv_unchanged,
+                value_column = "value",
+                mean_mode = matrix_params$mean_mode,
+                extend = matrix_params$extend,
+                w = matrix_params$w,
+                background = matrix_params$background,
+                smooth = matrix_params$smooth,
+                target_ratio = matrix_params$target_ratio
+            )
+        }
+    }
+    
+    return(list(
+        hyper = matrices_hyper,
+        unchanged = matrices_unchanged
+    ))
+}
+
+# Usage:
+all_matrices <- create_matrices_for_all(p_1, p0, p5, gr_dmv_hyper, gr_dmv_unchanged)
+
+# Access examples:
+# all_matrices$hyper$p_1$observed_entropy
+# all_matrices$hyper$p0$stochastic_mean
+# all_matrices$unchanged$p5$allelic_entropy
+
+```
+
+#test different ranges with methyaltion, make plot data
+```{r}
+create_all_plot_data <- function(matrices) {
+    passages <- c("p_1", "p0", "p5")
+    dmv_groups <- c("hyper", "unchanged")
+    
+    all_plot_data <- list(
+        hyper = list(),
+        unchanged = list()
+    )
+    
+    for (group in dmv_groups) {
+        for (passage in passages) {
+            current_matrices <- matrices[[group]][[passage]]
+            
+            plot_data <- data.frame(
+                position = 1:ncol(current_matrices$observed_entropy),
+                # Observed entropy: 25-75th percentile range
+                observed_mean = apply(current_matrices$observed_entropy, 2, 
+                                   function(x) quantile(x, 0.5, na.rm = TRUE)),
+                observed_min = apply(current_matrices$observed_entropy, 2, 
+                                   function(x) quantile(x, 0.25, na.rm = TRUE)),
+                observed_max = apply(current_matrices$observed_entropy, 2, 
+                                   function(x) quantile(x, 0.75, na.rm = TRUE)),
+                # Stochastic: 25-75th percentile range
+                stochastic_mean = apply(current_matrices$stochastic_min, 2, 
+                                   function(x) quantile(x, 0.5, na.rm = TRUE)),
+                stochastic_min = apply(current_matrices$stochastic_min, 2, 
+                                   function(x) quantile(x, 0.25, na.rm = TRUE)),
+                stochastic_max = apply(current_matrices$stochastic_max, 2, 
+                                   function(x) quantile(x, 0.75, na.rm = TRUE)),
+              
+                #methyaltion
+                methy_mean = apply(current_matrices$methylation, 2, 
+                                   function(x) quantile(x, 0.5, na.rm = TRUE)),
+                methy_min = apply(current_matrices$methylation, 2, 
+                                   function(x) quantile(x, 0.25, na.rm = TRUE)),
+                methy_max = apply(current_matrices$methylation, 2, 
+                                   function(x) quantile(x, 0.75, na.rm = TRUE)),
+                
+                # Allelic minimum for 25-75%
+                allelic_mean = apply(current_matrices$allelic_entropy, 2,
+                                     function(x) quantile(x, 0.5, na.rm = TRUE)),
+                allelic_min = apply(current_matrices$allelic_entropy, 2,
+                                     function(x) quantile(x, 0.25, na.rm = TRUE)),
+                allelic_max = apply(current_matrices$allelic_entropy, 2,
+                                     function(x) quantile(x, 0.75, na.rm = TRUE))
+                
+            )
+            
+            all_plot_data[[group]][[passage]] <- plot_data
+        }
+    }
+    
+    return(all_plot_data)
+}
+
+plot_data <- create_all_plot_data(all_matrices)
+
+```
+
+#use function to make plots (dmv)
+```{r}
+library("ggplot2")
+# Function to create consistent plots
+create_entropy_plot <- function(data, title) {
+  ggplot(data, aes(x = position)) +
+    # Add vertical lines for region boundaries
+    geom_vline(xintercept = c(10, 57), 
+               linetype = "dashed", color = "gray50", alpha = 0.5) +
+    
+    # Stochastic range and mean
+    geom_ribbon(aes(ymin = stochastic_min, ymax = stochastic_max, fill = "Stochastic"), 
+               alpha = 0.2) +
+    geom_smooth(aes(y = stochastic_mean, color = "Stochastic"), 
+               method = "loess", se = FALSE) +
+    
+    # Allelic range and mean
+    geom_ribbon(aes(ymin = allelic_min, ymax = allelic_max, fill = "Allelic-specific"), 
+               alpha = 0.2) +
+    geom_smooth(aes(y = allelic_mean, color = "Allelic-specific"), 
+               method = "loess", se = FALSE) +
+    
+    #methyaltion
+    geom_ribbon(aes(ymin = methy_min, ymax =  methy_max, fill = "Methylation"), 
+               alpha = 0.2) +
+    geom_smooth(aes(y = methy_mean, color = "Methylation"), 
+               method = "loess", se = FALSE) +
+    
+    
+    # Observed range and mean
+    geom_ribbon(aes(ymin = observed_min, ymax = observed_max, fill = "Observed"), 
+               alpha = 0.2) +
+    geom_smooth(aes(y = observed_mean, color = "Observed"), 
+               method = "loess", se = FALSE) +
+    
+    # Colors and styling
+    scale_color_manual(values = c("Stochastic" = "royalblue", 
+                                 "Allelic-specific" = "red", 
+                                 "Methylation" = "black",
+                                 "Observed" = "seagreen"),
+                      name = "Pattern type") +
+    scale_fill_manual(values = c("Stochastic" = "royalblue", 
+                                "Allelic-specific" = "red",
+                                "Methylation" = "black",
+                                "Observed" = "seagreen"),
+                      name = "Pattern type") +
+    scale_y_continuous(limits = c(0, 1)) +
+    scale_x_continuous(
+      breaks = c(1, 10, 57, 67),
+      labels = c("-2kb", "0", "DMV end", "+2kb")
+    ) +
+    labs(x = "Position relative to CGI",
+         y = "Methylation Entropy",
+         title = title) +
+    theme_bw() +
+    theme(
+      panel.grid.minor = element_blank(),
+      legend.position = "top",
+      legend.title = element_blank(),
+      axis.text = element_text(size = 10),
+      axis.title = element_text(size = 12)
+    )
+}
+
+# Create individual plots
+p0_plot_hyper <- create_entropy_plot(plot_data$hyper$p0, "Passage 0")
+p_1_plot_hyper <- create_entropy_plot(plot_data$hyper$p_1, "Unpassaged")
+p5_plot_hyper <- create_entropy_plot(plot_data$hyper$p5, "Passage 5")
+
+p0_plot_unchanged <- create_entropy_plot(plot_data$unchanged$p0, "Passage 0")
+p_1_plot_unchanged <- create_entropy_plot(plot_data$unchanged$p_1, "Unpassaged")
+p5_plot_unchanged <- create_entropy_plot(plot_data$unchanged$p5, "Passage 5")
+
+
+# Combine plots using patchwork
+library(patchwork)
+combined_plot_hyper <- p_1_plot_hyper / p0_plot_hyper / p5_plot_hyper +
+  plot_layout(guides = "collect") # Creates a single shared legend
+
+combined_plot_unchanged <- p_1_plot_unchanged / p0_plot_unchanged / p5_plot_unchanged +
+  plot_layout(guides = "collect") # Creates a single shared legend
+
+
+# Save the combined plot
+ggsave("/vast/palmer/scratch/zsmith/mc3365/rlm_analysis/simulation/data/mef/methylation_entropy_hyper_dmv_cgi_meth.pdf", combined_plot_hyper, 
+       width = 10, height = 12, units = "in")
+
+ggsave("/vast/palmer/scratch/zsmith/mc3365/rlm_analysis/simulation/data/mef/methylation_entropy_unchanged_dmv_cgi_meth.pdf", combined_plot_unchanged, 
+       width = 10, height = 12, units = "in")
+```
+

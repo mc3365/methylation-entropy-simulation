@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+.venv/
+venv/
+build/
+dist/
+*.out
+entropy_simulation.tsv
+minimum_entropy_lookup.csv
+minimum_entropy_combinations.json
