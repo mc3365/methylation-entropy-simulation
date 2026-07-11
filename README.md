@@ -56,9 +56,12 @@ CpGs per read.
 - `src/methylation_entropy/entropy_simulation_v2.py`: packaged simulation implementation
 - `src/methylation_entropy/create_lookup_v2.py`: packaged lookup generator
 - `tests/`: automated tests
+- `docs/methodology.md`: scientific rationale, complete workflow, and interpretation guide
 - `example_mef_metaplots.Rmd`: downstream visualization example (site-specific paths)
 - `simulation_hpc_raw_mef.sh`: original SLURM example (site-specific paths)
-- `Methylation Level & Entropy Simulation.pdf`: analysis notes
+
+See [Methodology and usage](docs/methodology.md) for the full explanation of the
+simulation design and guidance for interpreting its output.
 
 The version suffixes distinguish revised code from the original source. Future
 revisions should increment the suffix (`v3`, `v4`, and so on) while retaining
