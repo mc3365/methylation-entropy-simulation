@@ -12,8 +12,9 @@ an entropy value cannot be interpreted independently of its corresponding mean
 methylation level. The pipeline compares observed entropy with two reference
 models:
 
-1. **Minimum (allelic) entropy:** the theoretical lower bound at a given
-   methylation level.
+1. **Minimum possible entropy:** a mathematical lower bound at a given
+   methylation level. The older output calls this `allelic_entropy`, but the
+   bound does not establish allele-specific methylation.
 2. **Stochastic entropy:** the range expected when methylated CpGs are randomly
    distributed among DNA molecules while the total methylation level is held
    fixed.
@@ -22,7 +23,60 @@ These comparisons help address the central question: are observed entropy
 changes explained by mean methylation alone, or is methylation heterogeneity
 higher or lower than expected by chance?
 
-## Pipeline overview
+## Direct RLM workflow (v3)
+
+The recommended `methylation-entropy-rlm` command accepts RLM's complete
+`output_entropy.bed` without dropping columns. RLM reports entropy, the counts
+of all 16 four-CpG patterns, pooled mean methylation, and coverage for each
+four-CpG locus. Its entropy is Shannon entropy of the pattern frequencies
+divided by four, the same convention used here. The command verifies that the
+counts sum to coverage and reproduce RLM's entropy and mean (within the
+rounding of its text output). It reads the file in chunks and caches simulations
+for repeated `(coverage, methylated-site count)` pairs.
+
+For a locus with `n` complete reads and `k` methylated CpG calls, the matched
+null randomly permutes exactly `k` ones among `4n` positions, reshapes them
+into `n` four-CpG patterns, and calculates entropy. Its mean and 5th/95th
+percentiles describe the distribution of a **new sample at that depth under
+this null**, not uncertainty in the observed entropy estimate. The input's
+16 pattern counts make `n` and `k` exact, without rounding a decimal mean.
+
+The output contains:
+
+| Column(s) | Interpretation |
+| --- | --- |
+| `coverage`, `methylation`, `observed_entropy` | RLM summaries checked against pattern counts |
+| `matched_null_mean`, `matched_null_p05`, `matched_null_p95` | Null distribution at observed depth and methylated-call count |
+| `entropy_minus_matched_null` | Observed minus null mean; negative means more concentrated patterns than this null |
+| `empirical_p_lower`, `empirical_p_upper` | Inclusive one-sided tails, `(1 + number of equally or more extreme simulations)/(1 + nsims)` |
+| `minimum_possible_entropy` | Population lower bound at pooled mean; it may be unattainable at finite depth |
+| `reference_nreads`, `reference_mean`, `reference_p05`, `reference_p95` | Optional fixed-depth descriptive reference, 128 reads by default |
+
+The minimum bound is obtained by considering mixtures of at most two four-CpG
+patterns with the required pooled mean. It is not a model of alleles. At 50%
+methylation, for example, every molecule can have the same `ggGG` pattern,
+giving entropy zero. A 50/50 mixture of `gggg` and `GGGG` instead has entropy
+0.25. The synthetic `examples/rlm_entropy_demo.bed` includes both and a third
+50%-methylated case with all 16 patterns once (entropy 1). Its final row has
+10 reads and entropy about 0.73: ordinary under a 10-read random null at 50%
+methylation, yet far below the descriptive 128-read reference.
+
+Increasing `--nsims` makes the estimated null percentiles and tail
+probabilities more precise; it does not change the assumed read depth. With
+1,000 simulations, the smallest reported empirical tail probability is
+`1/1001`. The optional 128-read reference is useful for showing the high-depth
+stochastic expectation, but the matched columns should be used when asking
+whether a measured locus is unusual.
+
+A small tail probability indicates departure from **this pooled-mean shuffle
+null**. It does not by itself establish biological regulation: different
+CpGs can have different methylation rates, and cell or haplotype mixtures can
+also produce structure. An important follow-up is a null that independently
+shuffles each CpG column while preserving its observed methylated count, plus
+biological replicate analysis. Overlapping four-CpG windows are also not
+independent tests.
+
+## Legacy five-column pipeline overview (v2)
 
 The workflow has three computational stages:
 
