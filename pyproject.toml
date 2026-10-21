@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "methylation-entropy-simulation"
-version = "0.2.0"
+version = "0.3.0"
 description = "Simulate methylation entropy reference ranges for genomic data"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -16,6 +16,7 @@ dev = ["pytest>=7"]
 [project.scripts]
 methylation-entropy = "methylation_entropy.entropy_simulation_v2:main"
 methylation-entropy-lookup = "methylation_entropy.create_lookup_v2:main"
+methylation-entropy-rlm = "methylation_entropy.rlm_entropy_v3:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

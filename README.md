@@ -18,17 +18,83 @@ python -m pip install -e '.[dev]'
 pytest
 ```
 
-## Input
+## Run after RLM (recommended)
 
-The input is a headerless, tab-separated BED-like file:
+Run RLM with `--score entropy`, then pass its **unmodified**
+`output_entropy.bed` to this command. RLM's file has a `#chr` header, all 16
+four-CpG pattern counts, mean methylation, and `coverage`; these are needed to
+match the null to the number of molecules at each locus.
+
+```bash
+methylation-entropy-rlm \
+  --input output_entropy.bed \
+  --output entropy_comparison.tsv \
+  --nsims 1000 \
+  --seed 42 \
+  --reference-nreads 128
+```
+
+The `matched_null_*` columns simulate the **observed coverage and exact total
+methylated-CpG count** for each locus. `entropy_minus_matched_null` and the
+empirical lower/upper tail probabilities locate the observed value in that
+distribution. The separate `reference_*` columns retain the original 128-read
+comparison as a descriptive high-depth reference; they should not be used to
+classify a lower-depth locus. Use `--no-reference` to omit that extra simulation.
+The `minimum_possible_entropy` column is a population mathematical bound at the
+observed mean. It is not an allele-specific model, and may be unattainable at a
+particular finite coverage.
+
+Try the small, synthetic RLM-format example:
+
+```bash
+methylation-entropy-rlm \
+  --input examples/rlm_entropy_demo.bed \
+  --output entropy_demo.tsv \
+  --nsims 1000 --seed 42
+```
+
+All five rows have 50% mean methylation. The first three have 16 reads and
+represent one repeated pattern, a two-pattern mixture, and all 16 patterns.
+The final two have 10 reads; the last has entropy near the matched null but
+well below the 128-read reference. See [Methodology and usage](docs/methodology.md).
+
+To time the workflow on synthetic RLM-format data:
+
+```bash
+python examples/benchmark_rlm_entropy.py
+```
+
+The script reports both row counts and distinct `(coverage, methylated-site
+count)` pairs. Runtime depends mainly on the number of distinct pairs because
+each pair gets its own simulated distribution. Its default is 1,000 simulations
+per pair, with the optional 128-read reference enabled.
+
+To create the demonstration figure after running the example command above:
+
+```bash
+Rscript examples/plot_rlm_entropy_demo.R entropy_demo.tsv entropy_demo.png
+```
+
+The figure compares each observed entropy with its matched 5th–95th percentile
+range and the separate 128-read reference range. It requires R and `ggplot2`.
+
+![Synthetic depth-matched entropy comparison](docs/figures/rlm_entropy_demo.png)
+
+## Legacy input
+
+The original `methylation-entropy` command accepts a headerless, tab-separated
+BED-like file:
 
 ```text
 chrom  start  end  entropy  methylation
 ```
 
 Methylation must be between 0 and 1. Invalid or missing values are skipped.
+Because this format has no read depth or pattern counts, its fixed-depth null is
+descriptive only. The included `mef_entropy_p0.bed` uses this legacy format; it
+cannot be upgraded to a depth-matched analysis without the original RLM output.
 
-## Run
+## Legacy run
 
 ```bash
 methylation-entropy \
@@ -54,7 +120,11 @@ CpGs per read.
 ## Files
 
 - `src/methylation_entropy/entropy_simulation_v2.py`: packaged simulation implementation
+- `src/methylation_entropy/rlm_entropy_v3.py`: direct RLM integration with a depth-matched null
 - `src/methylation_entropy/create_lookup_v2.py`: packaged lookup generator
+- `examples/rlm_entropy_demo.bed`: small synthetic RLM-format demonstration
+- `examples/benchmark_rlm_entropy.py`: reproducible synthetic runtime check
+- `examples/plot_rlm_entropy_demo.R`: depth comparison figure example
 - `tests/`: automated tests
 - `docs/methodology.md`: scientific rationale, complete workflow, and interpretation guide
 - `example_mef_metaplots.Rmd`: downstream visualization example (site-specific paths)
@@ -63,9 +133,7 @@ CpGs per read.
 See [Methodology and usage](docs/methodology.md) for the full explanation of the
 simulation design and guidance for interpreting its output.
 
-The version suffixes distinguish revised code from the original source. Future
-revisions should increment the suffix (`v3`, `v4`, and so on) while retaining
-earlier versions for provenance.
+The version suffixes retain earlier implementations for provenance.
 
 ## Citation
 
