@@ -31,7 +31,7 @@ methylation-entropy-rlm \
   --output entropy_comparison.tsv \
   --nsims 1000 \
   --seed 42 \
-  --reference-nreads 128
+  --no-reference
 ```
 
 The `matched_null_*` columns simulate the **observed coverage and exact total
@@ -39,7 +39,9 @@ methylated-CpG count** for each locus. `entropy_minus_matched_null` and the
 empirical lower/upper tail probabilities locate the observed value in that
 distribution. The separate `reference_*` columns retain the original 128-read
 comparison as a descriptive high-depth reference; they should not be used to
-classify a lower-depth locus. Use `--no-reference` to omit that extra simulation.
+classify a lower-depth locus. The command above uses `--no-reference` so only
+the depth-matched simulation runs. Omit that flag to include the optional
+128-read reference.
 The `minimum_possible_entropy` column is a population mathematical bound at the
 observed mean. It is not an allele-specific model, and may be unattainable at a
 particular finite coverage.
@@ -68,17 +70,6 @@ The script reports both row counts and distinct `(coverage, methylated-site
 count)` pairs. Runtime depends mainly on the number of distinct pairs because
 each pair gets its own simulated distribution. Its default is 1,000 simulations
 per pair, with the optional 128-read reference enabled.
-
-To create the demonstration figure after running the example command above:
-
-```bash
-Rscript examples/plot_rlm_entropy_demo.R entropy_demo.tsv entropy_demo.png
-```
-
-The figure compares each observed entropy with its matched 5th–95th percentile
-range and the separate 128-read reference range. It requires R and `ggplot2`.
-
-![Synthetic depth-matched entropy comparison](docs/figures/rlm_entropy_demo.png)
 
 ## Legacy input
 
@@ -124,7 +115,6 @@ CpGs per read.
 - `src/methylation_entropy/create_lookup_v2.py`: packaged lookup generator
 - `examples/rlm_entropy_demo.bed`: small synthetic RLM-format demonstration
 - `examples/benchmark_rlm_entropy.py`: reproducible synthetic runtime check
-- `examples/plot_rlm_entropy_demo.R`: depth comparison figure example
 - `tests/`: automated tests
 - `docs/methodology.md`: scientific rationale, complete workflow, and interpretation guide
 - `example_mef_metaplots.Rmd`: downstream visualization example (site-specific paths)
