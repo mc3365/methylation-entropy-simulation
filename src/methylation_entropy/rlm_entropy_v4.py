@@ -23,7 +23,8 @@ OUTPUT_COLUMNS = (
     "independence_max_entropy", "observed_total_correlation",
     "independent_null_mean", "independent_null_sd", "independent_null_p05",
     "independent_null_p95",
-    "entropy_minus_independent_null", "empirical_p_coordination",
+    "entropy_minus_independent_null", "independent_null_percentile",
+    "empirical_p_coordination",
     "empirical_p_dispersion", "n_sims",
 )
 
@@ -127,6 +128,8 @@ def process_rlm_file(
                 total_correlation = maximum_entropy - float(entropy)
                 if total_correlation < -1e-10:
                     raise ValueError("observed entropy exceeds the CpG-marginal bound")
+                left = int(np.searchsorted(null, entropy - 1e-12, side="left"))
+                right = int(np.searchsorted(null, entropy + 1e-12, side="right"))
                 row = {
                     "chrom": chunk["#chr"].iat[index],
                     "start": int(chunk["start"].iat[index]),
@@ -143,12 +146,12 @@ def process_rlm_file(
                     "independent_null_p05": null_p05,
                     "independent_null_p95": null_p95,
                     "entropy_minus_independent_null": float(entropy - null_mean),
+                    "independent_null_percentile": float(
+                        (left + 0.5 * (right - left)) / n_sims),
                     "empirical_p_coordination": float(
-                        (1 + np.searchsorted(null, entropy + 1e-12, side="right"))
-                        / (n_sims + 1)),
+                        (1 + right) / (n_sims + 1)),
                     "empirical_p_dispersion": float(
-                        (1 + n_sims - np.searchsorted(null, entropy - 1e-12,
-                                                       side="left")) / (n_sims + 1)),
+                        (1 + n_sims - left) / (n_sims + 1)),
                     "n_sims": n_sims,
                 }
                 row.update({f"cpg{j}_methylated_count": count

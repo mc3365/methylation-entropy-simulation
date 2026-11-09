@@ -34,7 +34,10 @@ RLM's entropy is Shannon entropy of the 16 pattern frequencies divided by four.
 The v4 output reports the same observed value, four marginal counts and rates,
 and the conditional independence null's mean and 5th/95th percentiles. A
 negative `entropy_minus_independent_null` means more coordinated patterns than
-the null mean. `empirical_p_coordination` counts simulations with entropy at or
+the null mean. `independent_null_percentile` is the observed entropy's midrank
+within the simulated null, providing a direct location for plots: values near
+zero indicate coordination, values near one indicate dispersion, and 0.5 is
+central or entirely tied. `empirical_p_coordination` counts simulations with entropy at or
 below the observed entropy; `empirical_p_dispersion` counts those at or above
 it. Both use `(1 + count)/(1 + nsims)` and include ties. At 1,000 draws the
 smallest value is `1/1001`; deeper tails need more simulations. The percentile
@@ -51,6 +54,7 @@ biological effect estimate.
 | `observed_total_correlation` | Ceiling minus observed entropy; a descriptive, finite-sample-biased dependence measure |
 | `independent_null_mean`, `independent_null_sd`, `independent_null_p05`, `independent_null_p95` | Conditional independence entropy distribution at observed depth and marginals |
 | `entropy_minus_independent_null` | Observed minus null mean; negative suggests excess coordination |
+| `independent_null_percentile` | Midrank location of observed entropy in its matched null, from 0 (low) to 1 (high) |
 | `empirical_p_coordination`, `empirical_p_dispersion` | Inclusive one-sided Monte Carlo tail probabilities |
 | `n_sims` | Number of null draws used for this row |
 

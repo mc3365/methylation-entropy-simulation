@@ -42,7 +42,6 @@ if command -v samtools >/dev/null 2>&1; then
 fi
 
 "$rlm_bin" \
-    --version-check false \
     --bam "$bam_file" \
     --reference "$reference" \
     --mode "$mode" \

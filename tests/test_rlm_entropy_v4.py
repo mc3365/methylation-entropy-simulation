@@ -38,6 +38,17 @@ class CpgMatchedNullTests(unittest.TestCase):
             8, (0, 0, 8, 8), 50, np.random.default_rng(3))
         np.testing.assert_array_equal(null, np.zeros(50))
 
+    def test_simulation_matches_exact_small_null_probabilities(self):
+        # With three reads and one methylated call at each of two CpGs, the
+        # calls land on the same molecule with probability 1/3 and on distinct
+        # molecules with probability 2/3. These cases have different entropies.
+        null = simulate_independent_null(
+            3, (1, 1, 0, 0), 30000, np.random.default_rng(23))
+        low_entropy = entropy_from_counts(np.array([
+            2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]))
+        observed_low_fraction = float(np.mean(np.isclose(null, low_entropy)))
+        self.assertAlmostEqual(observed_low_fraction, 1 / 3, delta=0.015)
+
     def test_same_pooled_mean_has_distinct_coordination_interpretations(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "result.tsv"
@@ -50,10 +61,13 @@ class CpgMatchedNullTests(unittest.TestCase):
         self.assertEqual(result.loc[0, "independent_null_sd"], 0)
         self.assertEqual(result.loc[0, "informative_cpg_count"], 0)
         self.assertEqual(result.loc[0, "empirical_p_coordination"], 1)
+        self.assertEqual(result.loc[0, "independent_null_percentile"], 0.5)
         self.assertEqual(result.loc[1, "independence_max_entropy"], 1)
         self.assertEqual(result.loc[1, "informative_cpg_count"], 4)
         self.assertLess(result.loc[1, "empirical_p_coordination"], 0.01)
+        self.assertLess(result.loc[1, "independent_null_percentile"], 0.01)
         self.assertLess(result.loc[2, "empirical_p_dispersion"], 0.01)
+        self.assertGreater(result.loc[2, "independent_null_percentile"], 0.99)
         self.assertGreater(result.loc[4, "empirical_p_coordination"], 0.05)
         self.assertTrue((result["observed_total_correlation"] >= 0).all())
         self.assertFalse(any("reference" in column or "allelic" in column

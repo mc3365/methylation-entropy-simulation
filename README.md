@@ -40,7 +40,10 @@ across the observed number of molecules. This preserves all four CpG methylation
 counts exactly while removing coordination among CpGs. The
 `independent_null_*` columns describe the resulting entropy distribution;
 `entropy_minus_independent_null` is negative when the observed patterns are more
-coordinated. `empirical_p_coordination` is the inclusive lower-tail Monte Carlo
+coordinated. `independent_null_percentile` directly locates the observed entropy
+within its matched null: values near 0 indicate coordination, values near 1
+indicate dispersion, and ties use their midrank. `empirical_p_coordination` is
+the inclusive lower-tail Monte Carlo
 probability. A small value indicates departure from this independence null,
 **not proof of a clone or biological regulation**. The 5th–95th percentile
 range is a null distribution, not a confidence interval for a biological effect.
@@ -137,8 +140,6 @@ CpGs per read.
 - `examples/benchmark_rlm_entropy.py`: reproducible synthetic runtime check
 - `examples/calibrate_cpg_null.py`: synthetic null calibration check
 - `examples/run_rlm_entropy_from_bam.sh`: generic RLM pilot for an aligned BAM
-- `examples/bouchet_hc_rlm_pilot.sbatch`: extract one indexed HC BAM and run RLM on scratch
-- `examples/bouchet_v4_pilot.sbatch`: run v4 on a small RLM sample with a Python Conda environment
 - `tests/`: automated tests
 - `docs/methodology.md`: scientific rationale, complete workflow, and interpretation guide
 - `example_mef_metaplots.Rmd`: historical v2 plot code; not valid for v4 output
@@ -147,9 +148,7 @@ CpGs per read.
 See [Methodology and usage](docs/methodology.md) for the full explanation of the
 simulation design and guidance for interpreting its output. The
 [validation plan](docs/validation_plan.md) lists the real-data and biological
-checks needed before a publication-ready release. The [Bouchet pilot guide](docs/bouchet_pilot.md)
-shows the scratch-only Slurm workflow and separate Conda environments for RLM
-and Python.
+checks needed before a publication-ready release.
 
 See the [changelog](CHANGELOG.md) before upgrading from v3: the
 `methylation-entropy-rlm` null model and output schema changed in v0.4.

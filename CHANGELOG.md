@@ -7,6 +7,8 @@
   methylated-call count. It reports CpG marginals, an entropy ceiling, a
   descriptive total-correlation value, null summaries, and one-sided Monte
   Carlo tail probabilities.
+- Added the observed entropy's midrank percentile within its matched null for
+  direct visualization of coordination versus dispersion.
 - The previous pooled-count RLM method remains available as
   `methylation-entropy-rlm-pooled`. Its output columns and optional 128-read
   reference are unchanged. Users who need to reproduce v3 results should use
