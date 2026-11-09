@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "methylation-entropy-simulation"
-version = "0.3.0"
-description = "Simulate methylation entropy reference ranges for genomic data"
+version = "0.4.0"
+description = "Test four-CpG methylation coordination against a matched independence null"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.23", "pandas>=1.5"]
@@ -16,7 +16,8 @@ dev = ["pytest>=7"]
 [project.scripts]
 methylation-entropy = "methylation_entropy.entropy_simulation_v2:main"
 methylation-entropy-lookup = "methylation_entropy.create_lookup_v2:main"
-methylation-entropy-rlm = "methylation_entropy.rlm_entropy_v3:main"
+methylation-entropy-rlm = "methylation_entropy.rlm_entropy_v4:main"
+methylation-entropy-rlm-pooled = "methylation_entropy.rlm_entropy_v3:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

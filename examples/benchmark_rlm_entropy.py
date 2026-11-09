@@ -10,13 +10,20 @@ import pandas as pd
 
 from methylation_entropy.rlm_entropy_v3 import (
     PATTERNS, PATTERN_WEIGHTS, REQUIRED_COLUMNS, entropy_from_counts,
-    process_rlm_file,
+    process_rlm_file as process_pooled_file,
+)
+from methylation_entropy.rlm_entropy_v4 import (
+    PATTERN_BITS, process_rlm_file as process_cpg_file,
 )
 
 
-def unique_depth_count_pairs(data):
+def unique_depth_count_pairs(data, model):
     counts = data.loc[:, PATTERNS].to_numpy(dtype=np.int64)
-    return len(set(zip(counts.sum(axis=1), counts @ PATTERN_WEIGHTS)))
+    if model == "pooled":
+        signatures = zip(counts.sum(axis=1), counts @ PATTERN_WEIGHTS)
+    else:
+        signatures = zip(counts.sum(axis=1), *(counts @ PATTERN_BITS).T)
+    return len(set(signatures))
 
 
 def varied_rows(number, seed):
@@ -42,6 +49,8 @@ def main():
     parser.add_argument("--varied-rows", type=int, default=500)
     parser.add_argument("--nsims", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=71)
+    parser.add_argument("--model", choices=("per-cpg", "pooled"),
+                        default="per-cpg")
     args = parser.parse_args()
     if min(args.repeated_rows, args.varied_rows, args.nsims) < 1:
         parser.error("row counts and nsims must be positive")
@@ -57,10 +66,15 @@ def main():
             output = Path(directory) / (name + ".tsv")
             data.to_csv(source, sep="\t", index=False)
             start = perf_counter()
-            process_rlm_file(source, output, n_sims=args.nsims, seed=args.seed)
+            if args.model == "per-cpg":
+                process_cpg_file(source, output, n_sims=args.nsims, seed=args.seed)
+            else:
+                process_pooled_file(source, output, n_sims=args.nsims,
+                                    seed=args.seed, reference_nreads=None)
             elapsed = perf_counter() - start
-            print(f"{name}: {len(data)} rows, {unique_depth_count_pairs(data)} "
-                  f"distinct depth/count pairs, {elapsed:.3f} seconds")
+            print(f"{args.model} {name}: {len(data)} rows, "
+                  f"{unique_depth_count_pairs(data, args.model)} distinct "
+                  f"depth/count signatures, {elapsed:.3f} seconds")
 
 
 if __name__ == "__main__":
