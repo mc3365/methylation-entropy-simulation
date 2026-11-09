@@ -25,8 +25,8 @@ OUT_ROOT=$(realpath -e -- "$OUT_ROOT")
    "$BAM_MEMBER" != *../* && "$BAM_MEMBER" != ../* ]] || {
     echo "BAM_MEMBER must be a relative .bam path without .." >&2; exit 2;
 }
-[[ -f "$ARCHIVE" && -f "$REFERENCE" && -x "$RLM_BIN" ]] || {
-    echo "Archive, reference, or RLM executable is missing" >&2; exit 2;
+[[ -f "$ARCHIVE" && -f "$REFERENCE" && -f "${REFERENCE}.fai" && -x "$RLM_BIN" ]] || {
+    echo "Archive, reference FASTA/index, or RLM executable is missing" >&2; exit 2;
 }
 conda_sh=${CONDA_SH:-/apps/software/system/software/miniconda/26.9.4/etc/profile.d/conda.sh}
 [[ -f "$conda_sh" ]] || { echo "Conda initialization script is missing" >&2; exit 2; }
@@ -48,6 +48,32 @@ bam_file="$run_dir/$BAM_MEMBER"
     echo "Expected BAM and index were not extracted" >&2; exit 2;
 }
 samtools quickcheck -v "$bam_file"
+samtools view -H "$bam_file" | awk -v fai="${REFERENCE}.fai" '
+    BEGIN {
+        while ((getline line < fai) > 0) {
+            split(line, fields, "\t")
+            lengths[fields[1]] = fields[2]
+        }
+        close(fai)
+    }
+    $1 == "@SQ" {
+        name = ""
+        contig_length = ""
+        for (i = 2; i <= NF; i++) {
+            if ($i ~ /^SN:/) name = substr($i, 4)
+            if ($i ~ /^LN:/) contig_length = substr($i, 4)
+        }
+        if (name == "" || contig_length == "" || !(name in lengths) || lengths[name] != contig_length) {
+            print "BAM/reference contig mismatch:", name, contig_length > "/dev/stderr"
+            bad = 1
+        }
+        seen++
+    }
+    END {
+        if (seen == 0) print "BAM header has no @SQ records" > "/dev/stderr"
+        exit (bad || seen == 0)
+    }
+'
 
 "$RLM_BIN" \
     --version-check false \

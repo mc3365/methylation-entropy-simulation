@@ -25,7 +25,8 @@ sbatch --output="$OUT_ROOT/rlm-%j.log" examples/bouchet_hc_rlm_pilot.sbatch
 ```
 
 The job creates a unique `sample_JOBID` directory under `OUT_ROOT`, extracts
-the BAM and index there, checks the BAM, and writes the full RLM entropy and
+the BAM and index there, checks the BAM and its contig lengths against the
+reference FASTA index, and writes the full RLM entropy and
 single-read BEDs there. `--version-check false` avoids the interactive update
 question during a batch job. The archive and reference are read only.
 
