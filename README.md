@@ -137,6 +137,8 @@ CpGs per read.
 - `examples/benchmark_rlm_entropy.py`: reproducible synthetic runtime check
 - `examples/calibrate_cpg_null.py`: synthetic null calibration check
 - `examples/run_rlm_entropy_from_bam.sh`: generic RLM pilot for an aligned BAM
+- `examples/bouchet_hc_rlm_pilot.sbatch`: extract one indexed HC BAM and run RLM on scratch
+- `examples/bouchet_v4_pilot.sbatch`: run v4 on a small RLM sample with a Python Conda environment
 - `tests/`: automated tests
 - `docs/methodology.md`: scientific rationale, complete workflow, and interpretation guide
 - `example_mef_metaplots.Rmd`: historical v2 plot code; not valid for v4 output
@@ -145,7 +147,9 @@ CpGs per read.
 See [Methodology and usage](docs/methodology.md) for the full explanation of the
 simulation design and guidance for interpreting its output. The
 [validation plan](docs/validation_plan.md) lists the real-data and biological
-checks needed before a publication-ready release.
+checks needed before a publication-ready release. The [Bouchet pilot guide](docs/bouchet_pilot.md)
+shows the scratch-only Slurm workflow and separate Conda environments for RLM
+and Python.
 
 See the [changelog](CHANGELOG.md) before upgrading from v3: the
 `methylation-entropy-rlm` null model and output schema changed in v0.4.
