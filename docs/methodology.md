@@ -2,30 +2,102 @@
 
 ## Purpose
 
-This pipeline analyzes methylation entropy from whole-genome bisulfite
-sequencing (WGBS) data. Its goal is to separate entropy changes that arise
-naturally from changes in mean methylation from entropy patterns that may
-reflect biological regulation of methylation heterogeneity.
+This pipeline analyzes four-CpG methylation patterns from whole-genome bisulfite
+sequencing (WGBS). Its recommended question is whether CpGs on the same
+molecules are more coordinated than expected from their individual methylation
+levels and the number of observed molecules. It does not directly identify cell
+clones, alleles, or regulatory mechanisms.
 
-Methylation entropy tends to increase as methylation approaches 50%. Therefore,
-an entropy value cannot be interpreted independently of its corresponding mean
-methylation level. The pipeline compares observed entropy with two reference
-models:
+The original workflow used a pooled methylation shuffle at a fixed 128-read
+depth and a separate mathematical minimum. The v3 workflow matched read depth
+but still pooled the four CpGs. The recommended v4 workflow matches depth and
+**each CpG's methylated-call count**. Earlier methods remain available for
+comparison, but their outputs answer different questions.
 
-1. **Minimum possible entropy:** a mathematical lower bound at a given
-   methylation level. The older output calls this `allelic_entropy`, but the
-   bound does not establish allele-specific methylation.
-2. **Stochastic entropy:** the range expected when methylated CpGs are randomly
-   distributed among DNA molecules while the total methylation level is held
-   fixed.
+## Recommended RLM workflow (v4)
 
-These comparisons help address the central question: are observed entropy
-changes explained by mean methylation alone, or is methylation heterogeneity
-higher or lower than expected by chance?
+RLM's complete 23-column entropy output contains the 16 four-CpG pattern counts
+and coverage. For each window, v4 derives four CpG-specific methylated-call
+counts from those pattern counts. Each null draw independently permutes each
+CpG column across the observed number of molecules. Thus every draw preserves
+the exact coverage and four observed CpG marginals while destroying
+within-molecule association. No rounding of a decimal mean is needed.
 
-## Direct RLM workflow (v3)
+```bash
+methylation-entropy-rlm \
+  --input sample_entropy.bed \
+  --output sample_cpg_null.tsv \
+  --nsims 1000 --seed 42
+```
 
-The recommended `methylation-entropy-rlm` command accepts RLM's complete
+RLM's entropy is Shannon entropy of the 16 pattern frequencies divided by four.
+The v4 output reports the same observed value, four marginal counts and rates,
+and the conditional independence null's mean and 5th/95th percentiles. A
+negative `entropy_minus_independent_null` means more coordinated patterns than
+the null mean. `empirical_p_coordination` counts simulations with entropy at or
+below the observed entropy; `empirical_p_dispersion` counts those at or above
+it. Both use `(1 + count)/(1 + nsims)` and include ties. At 1,000 draws the
+smallest value is `1/1001`; deeper tails need more simulations. The percentile
+range describes simulated samples under the null, **not** uncertainty in a
+biological effect estimate.
+
+| Output column(s) | Meaning |
+| --- | --- |
+| `chrom`, `start`, `end`, `coverage` | RLM locus and number of complete four-CpG molecules |
+| `methylation`, `observed_entropy` | RLM summaries recomputed and checked from pattern counts |
+| `informative_cpg_count` | Number of CpGs that vary across the observed molecules; zero or one cannot identify inter-CpG dependence |
+| `cpg1_methylated_count` through `cpg4_methylated_count`; `cpg1_methylation` through `cpg4_methylation` | Per-position counts and fractions; CpG 1 is the leftmost pattern character |
+| `independence_max_entropy` | Population entropy ceiling at the observed CpG-specific rates |
+| `observed_total_correlation` | Ceiling minus observed entropy; a descriptive, finite-sample-biased dependence measure |
+| `independent_null_mean`, `independent_null_sd`, `independent_null_p05`, `independent_null_p95` | Conditional independence entropy distribution at observed depth and marginals |
+| `entropy_minus_independent_null` | Observed minus null mean; negative suggests excess coordination |
+| `empirical_p_coordination`, `empirical_p_dispersion` | Inclusive one-sided Monte Carlo tail probabilities |
+| `n_sims` | Number of null draws used for this row |
+
+The population entropy ceiling at the observed marginal rates is
+`independence_max_entropy = sum_j h(p_j)/4`, where `h` is binary entropy.
+`observed_total_correlation` is that ceiling minus observed entropy. Its raw
+value can be positive under independence at finite depth because empirical
+joint entropy is downward-biased. Compare it with the matched simulation rather
+than treating zero as a finite-sample cutoff. The ceiling need not be attainable
+by a finite set of reads.
+
+At 50% pooled methylation, 16 identical `ggGG` reads have entropy zero but each
+CpG is constant across reads; v4 correctly gives a degenerate null at zero.
+Its coordination p-value is one because there is no variation to test, not
+because the data demonstrate independence.
+Eight `gggg` plus eight `GGGG` reads also have 50% pooled methylation, but all
+four CpGs vary in lockstep, yielding a small coordination-tail probability.
+This distinction cannot be made from the five-column legacy output.
+
+The null assumes molecules are exchangeable after conditioning on the four
+observed CpG counts. Bisulfite conversion errors, PCR duplicates, mapping bias,
+cell-type mixtures, allele-specific methylation, and heterogeneous molecule
+sampling can affect interpretation. Overlapping four-CpG windows share CpGs and
+often molecules, so window p-values are not independent biological replicates.
+Low entropy can arise from positive concordance, anticorrelation, or other
+dependence among CpGs; this omnibus entropy test does not identify a specific
+pattern such as fully methylated molecules.
+
+For DMV questions, summarize window-level effects within each DMV and compare
+those summaries across biological replicates. Keep simulation percentiles
+separate from between-DMV and between-replicate variation in figures.
+
+The tool has been checked against synthetic RLM-format data. Full real RLM
+outputs are needed to validate input compatibility, coverage distributions,
+simulation calibration, and biological conclusions before publication.
+
+The reproducible `examples/calibrate_cpg_null.py` diagnostic generates
+independent reads and a coordinated mixture with the same population CpG
+methylation rates. With its quick defaults (200 datasets, 40 reads per dataset,
+999 null draws), 5.0% of independent datasets and 75.0% of coordinated datasets
+had `empirical_p_coordination <= 0.05` at seed 71. These rates depend on the
+specified depth, rates, mixture, and seed; they are a code calibration check,
+not a measured biological effect or complete operating-characteristic study.
+
+## Previous pooled RLM workflow (v3)
+
+The `methylation-entropy-rlm-pooled` command accepts RLM's complete
 `output_entropy.bed` without dropping columns. RLM reports entropy, the counts
 of all 16 four-CpG patterns, pooled mean methylation, and coverage for each
 four-CpG locus. Its entropy is Shannon entropy of the pattern frequencies
@@ -71,10 +143,9 @@ whether a measured locus is unusual.
 A small tail probability indicates departure from **this pooled-mean shuffle
 null**. It does not by itself establish biological regulation: different
 CpGs can have different methylation rates, and cell or haplotype mixtures can
-also produce structure. An important follow-up is a null that independently
-shuffles each CpG column while preserving its observed methylated count, plus
-biological replicate analysis. Overlapping four-CpG windows are also not
-independent tests.
+also produce structure. The recommended v4 null above addresses the unequal
+CpG-rate limitation. Overlapping four-CpG windows are still not independent
+tests.
 
 ## Legacy five-column pipeline overview (v2)
 
@@ -187,12 +258,15 @@ The output is a tab-separated table containing:
 | `stochastic_min` | 5th percentile of simulated entropy |
 | `stochastic_max` | 95th percentile of simulated entropy |
 
-## 3. Visualization around genomic features
+## Historical metaplot example (v2; not suitable for v4)
 
 The included `example_mef_metaplots.Rmd` illustrates how to compare entropy
 profiles around genomic features such as DNA methylation valleys (DMVs) and CpG
 islands. Its file paths are specific to the original HPC environment and must be
-changed before use.
+changed before use. It consumes v2 columns and must **not** be used to plot v4
+results. Its `stochastic_mean` trace is built from the old `stochastic_min`
+column, so historical figures made with this script need to be audited before
+scientific interpretation.
 
 The example workflow:
 
@@ -208,9 +282,10 @@ The `extend` parameter controls the genomic distance around each target, and
 `w` controls bin width. Both should be selected for the biological question and
 feature scale.
 
-The example metaplot ribbons summarize the 25th to 75th percentiles across
-genomic features. This differs from `stochastic_min` and `stochastic_max`, which
-are the 5th and 95th percentiles across simulations at each individual locus.
+The example's observed ribbon summarizes the 25th to 75th percentiles across
+genomic features. Its stochastic ribbon combines across-feature quartiles of
+the *per-locus* simulated 5th and 95th percentiles. Those are different kinds
+of variation and their overlap is not a calibrated test.
 
 ## Interpretation guide
 
@@ -252,7 +327,8 @@ commands above are preferred for new workflows.
 
 - Entropy must be interpreted together with mean methylation.
 - The lookup and simulation read depths differ by default (16 versus 128 reads).
-- Monte Carlo percentiles describe simulation uncertainty at each locus.
+- Monte Carlo percentiles describe a null distribution at each locus, not
+  uncertainty in a biological effect.
 - Metaplot percentiles describe variation across genomic features.
 - The stochastic and minimum models are reference baselines, not direct evidence
   for a particular molecular mechanism.
